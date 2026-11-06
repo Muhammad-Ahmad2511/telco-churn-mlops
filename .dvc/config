@@ -1,0 +1,4 @@
+[core]
+    remote = origin
+['remote "origin"']
+    url = https://dagshub.com/Muhammad-Ahmad2511/telco-churn-mlops.dvc
