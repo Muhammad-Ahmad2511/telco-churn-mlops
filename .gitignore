@@ -1,0 +1,14 @@
+.env
+*.env
+__pycache__/
+.venv/
+.pytest_cache/
+.ruff_cache/
+mlruns/
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/raw/*.dvc
+*.pkl
+*.db
