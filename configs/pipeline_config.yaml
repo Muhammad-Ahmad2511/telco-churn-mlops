@@ -1,0 +1,8 @@
+# configs/pipeline_config.yaml
+data:
+  raw_path: data/raw/telco_churn.csv
+  target: Churn
+  # customerID is an ID. gender is a sensitive attribute (fairness discussion in REPORT.md).
+  drop_columns: [customerID, gender]
+  test_size: 0.2
+  random_state: 42
