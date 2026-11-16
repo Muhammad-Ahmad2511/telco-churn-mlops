@@ -1,0 +1,16 @@
+# configs/model_params.yaml
+model:
+  name: logistic_regression
+  params:
+    C: 1.0
+    max_iter: 1000
+    class_weight: balanced
+
+# Quality gate (initial guesses, adjust after the first run).
+# A model below these values must NOT be promoted or deployed.
+thresholds:
+  min_recall: 0.60
+  min_f1: 0.55
+
+mlflow:
+  experiment_name: telco-churn
