@@ -14,3 +14,5 @@ thresholds:
 
 mlflow:
   experiment_name: telco-churn
+registry:
+  model_name: telco-churn-classifier
