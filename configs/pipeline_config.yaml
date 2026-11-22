@@ -4,5 +4,6 @@ data:
   target: Churn
   # customerID is an ID. gender is a sensitive attribute (fairness discussion in REPORT.md).
   drop_columns: [customerID, gender]
-  test_size: 0.2
+  test_size: 0.2   # share of all rows held out for the final test
+  val_size: 0.2    # share of all rows used to compare tuning candidates
   random_state: 42

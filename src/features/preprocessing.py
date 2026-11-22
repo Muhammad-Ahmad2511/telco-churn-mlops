@@ -58,6 +58,25 @@ def split_data(df: pd.DataFrame, cfg: dict):
     )
 
 
+def split_train_val_test(df: pd.DataFrame, cfg: dict):
+    """Stratified train/validation/test split.
+
+    The test set is identical to split_data() (same size and seed), so tuned models
+    are scored on exactly the rows the baseline used.
+    Returns X_train, X_val, X_test, y_train, y_val, y_test.
+    """
+    X_trainval, X_test, y_trainval, y_test = split_data(df, cfg)
+    val_share = cfg["val_size"] / (1 - cfg["test_size"])
+    X_train, X_val, y_train, y_val = train_test_split(
+        X_trainval,
+        y_trainval,
+        test_size=val_share,
+        random_state=cfg["random_state"],
+        stratify=y_trainval,
+    )
+    return X_train, X_val, X_test, y_train, y_val, y_test
+
+
 def build_preprocessor(X: pd.DataFrame) -> ColumnTransformer:
     """Scale numeric columns, one-hot encode the rest. Unseen categories are ignored."""
     numeric = X.select_dtypes(include="number").columns.tolist()
