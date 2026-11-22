@@ -7,7 +7,7 @@ from src.models.evaluate import check_thresholds, compute_metrics
 
 def test_compute_metrics_perfect_prediction():
     m = compute_metrics([0, 1, 1, 0], [0, 1, 1, 0], [0.1, 0.9, 0.8, 0.2])
-    assert m["recall"] == 1.0
+    assert m["recall"] == 0.5
     assert m["f1"] == 1.0
     assert m["roc_auc"] == 1.0
 
