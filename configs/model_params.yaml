@@ -12,6 +12,22 @@ thresholds:
   min_recall: 0.60
   min_f1: 0.55
 
+# Hyperparameter search used by src/models/tune.py.
+# Every combination is trained on train and scored on validation.
+# Winner = best validation F1 among candidates that reach min_recall.
+tuning:
+  selection_metric: f1
+  candidates:
+    logistic_regression:
+      C: [0.1, 1.0, 10.0]
+    random_forest:
+      n_estimators: [300]
+      max_depth: [8, 16]
+      min_samples_leaf: [1, 5]
+    hist_gradient_boosting:
+      learning_rate: [0.05, 0.1]
+      max_depth: [3, 6]
+
 mlflow:
   experiment_name: telco-churn
 registry:
