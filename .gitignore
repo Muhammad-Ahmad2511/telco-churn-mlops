@@ -1,16 +1,30 @@
+# secrets
 .env
 *.env
+!.env.example
+
+# python / tooling
 __pycache__/
 .venv/
 .pytest_cache/
 .ruff_cache/
-mlruns/
+.python-version
+.coverage
+htmlcov/
+test-reports/
+
+# data (tracked by DVC, not git)
 data/raw/*.csv
 data/processed/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/raw/*.dvc
+
+# ML artifacts
+mlruns/
+mlartifacts/
 *.pkl
 *.db
-.python-version
-.pdf
+
+# documents
+*.pdf
