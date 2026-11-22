@@ -1,6 +1,7 @@
 # configs/pipeline_config.yaml
 data:
   raw_path: data/raw/telco_churn.csv
+  processed_path: data/processed/telco_clean.parquet
   target: Churn
   # customerID is an ID. gender is a sensitive attribute (fairness discussion in REPORT.md).
   drop_columns: [customerID, gender]

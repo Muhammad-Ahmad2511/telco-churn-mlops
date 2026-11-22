@@ -96,3 +96,15 @@ def test_real_dataset_passes_and_has_expected_shape():
     df = pd.read_csv(RAW_CSV)
     assert df.shape == (7043, 21)
     validate_raw(df)
+
+def test_validation_report_written(tmp_path):
+    import json
+
+    from src.data.validation import write_report
+
+    report = tmp_path / "reports" / "validation.json"
+    write_report(make_valid_df(), "sample.csv", str(report))
+    data = json.loads(report.read_text(encoding="utf-8"))
+    assert data["passed"] is True
+    assert (data["rows"], data["columns"]) == (2, 21)
+    assert data["churn_rate"] == 0.0

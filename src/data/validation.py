@@ -4,8 +4,11 @@
 """
 from __future__ import annotations
 
+import argparse
+import json
 import logging
 import sys
+from pathlib import Path
 
 import pandas as pd
 import pandera.pandas as pa
@@ -84,11 +87,30 @@ def validate_file(path: str) -> pd.DataFrame:
     return validate_raw(pd.read_csv(path))
 
 
+def write_report(df: pd.DataFrame, csv_path: str, report_path: str) -> None:
+    """Small JSON summary used as the DVC `validate` stage output."""
+    report = {
+        "file": csv_path,
+        "schema": RAW_SCHEMA.name,
+        "passed": True,
+        "rows": int(df.shape[0]),
+        "columns": int(df.shape[1]),
+        "churn_rate": round(float((df["Churn"] == "Yes").mean()), 4),
+    }
+    Path(report_path).parent.mkdir(parents=True, exist_ok=True)
+    Path(report_path).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-    csv_path = sys.argv[1] if len(sys.argv) > 1 else "data/raw/telco_churn.csv"
+    parser = argparse.ArgumentParser(description="Validate the raw Telco churn CSV.")
+    parser.add_argument("csv_path", nargs="?", default="data/raw/telco_churn.csv")
+    parser.add_argument("--report", help="write a JSON summary here when validation passes")
+    args = parser.parse_args()
     try:
-        validate_file(csv_path)
+        validated = validate_file(args.csv_path)
     except pa.errors.SchemaErrors as err:
         logger.error("Validation FAILED:\n%s", err.failure_cases)
         sys.exit(1)
+    if args.report:
+        write_report(validated, args.csv_path, args.report)

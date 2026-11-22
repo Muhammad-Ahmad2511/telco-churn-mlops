@@ -3,7 +3,14 @@
 import pandas as pd
 import pytest
 
-from src.features.preprocessing import build_preprocessor, clean_raw, split_data
+from src.features.preprocessing import (
+    build_preprocessor,
+    clean_raw,
+    drop_unused,
+    fix_types,
+    load_processed,
+    split_data,
+)
 
 CFG = {
     "target": "Churn",
@@ -68,3 +75,26 @@ def test_preprocessor_ignores_unseen_category():
     new = X_train.head(1).copy()
     new["Contract"] = "Weekly"  # never seen in training
     assert pre.transform(new).shape[0] == 1
+
+def test_fix_types_keeps_id_and_gender_for_feature_store_and_fairness():
+    out = fix_types(make_df(), CFG)
+    assert {"customerID", "gender"} <= set(out.columns)
+    assert out["TotalCharges"].dtype == "float64"
+    assert set(out["Churn"].unique()) == {0, 1}
+
+
+def test_clean_raw_equals_fix_types_then_drop_unused():
+    df = make_df()
+    pd.testing.assert_frame_equal(clean_raw(df, CFG), drop_unused(fix_types(df, CFG), CFG))
+
+
+def test_processed_parquet_roundtrip(tmp_path):
+    """preprocess stage output -> load_processed gives the same frame as clean_raw."""
+    cfg = {**CFG, "processed_path": str(tmp_path / "clean.parquet")}
+    fix_types(make_df(), cfg).to_parquet(cfg["processed_path"], index=False)
+    pd.testing.assert_frame_equal(load_processed(cfg), clean_raw(make_df(), cfg))
+
+
+def test_load_processed_missing_file_has_clear_error(tmp_path):
+    with pytest.raises(FileNotFoundError, match="dvc repro"):
+        load_processed({**CFG, "processed_path": str(tmp_path / "missing.parquet")})
