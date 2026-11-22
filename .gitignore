@@ -5,7 +5,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 mlruns/
-data/raw/*
+data/raw/*.csv
 data/processed/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
@@ -13,3 +13,4 @@ data/processed/*
 *.pkl
 *.db
 .python-version
+.pdf
