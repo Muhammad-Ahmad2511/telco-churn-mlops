@@ -1,0 +1,148 @@
+# .github/workflows/ci.yml
+# Quality gates for every push and pull request (spec §3.5, §3.6).
+# Any failing job blocks the PR once "CI" is a required check in branch protection.
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  IMAGE: telco-churn-api:${{ github.sha }}
+
+jobs:
+  lint-and-test:
+    name: Lint and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DAGSHUB_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
+      DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Pull dataset with DVC
+        # Credentials come from GitHub Secrets and are written to .dvc/config.local only.
+        if: ${{ env.DAGSHUB_TOKEN != '' }}
+        run: |
+          dvc remote modify origin --local auth basic
+          dvc remote modify origin --local user "$DAGSHUB_USERNAME"
+          dvc remote modify origin --local password "$DAGSHUB_TOKEN"
+          dvc pull
+
+      - name: Run tests (pytest)
+        run: pytest -v --junitxml=test-reports/junit.xml
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: test-reports/junit.xml
+
+  security-scan:
+    name: Security scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install scanners
+        run: pip install pip-audit==2.10.1 bandit==1.9.4
+
+      - name: Code scan (bandit, medium+ severity)
+        run: bandit -r src -ll
+
+      - name: Dependency scan - API image requirements
+        run: pip-audit -r requirements-api.txt --progress-spinner off
+
+      - name: Dependency scan - full dev requirements
+        # PYSEC-2026-2447 (CVE-2025-69872): diskcache pickle deserialization.
+        # diskcache comes only from DVC (dev tool), is NOT in the API image,
+        # needs local write access to the cache dir, and has no fixed version yet.
+        run: pip-audit -r requirements.txt --progress-spinner off --ignore-vuln PYSEC-2026-2447
+
+  docker:
+    name: Docker build, scan and smoke test
+    needs: [lint-and-test, security-scan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      DAGSHUB_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
+      DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build API image
+        run: docker build -f docker/Dockerfile.api -t "$IMAGE" .
+
+      - name: Image scan (Trivy, fail on fixable CRITICAL)
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest image \
+            --severity CRITICAL --ignore-unfixed --exit-code 1 --no-progress "$IMAGE"
+
+      - name: Smoke test (real model from MLflow registry)
+        if: ${{ env.DAGSHUB_TOKEN != '' }}
+        run: |
+          docker run -d --name api -p 5000:5000 \
+            -e MLFLOW_TRACKING_URI=https://dagshub.com/Muhammad-Ahmad2511/telco-churn-mlops.mlflow \
+            -e MLFLOW_TRACKING_USERNAME="$DAGSHUB_USERNAME" \
+            -e MLFLOW_TRACKING_PASSWORD="$DAGSHUB_TOKEN" \
+            "$IMAGE"
+
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:5000/health; then echo; break; fi
+            sleep 5
+          done
+          curl -sf http://localhost:5000/health || { docker logs api; exit 1; }
+
+          curl -sf http://localhost:5000/model-info; echo
+
+          curl -sf -X POST http://localhost:5000/predict \
+            -H "Content-Type: application/json" \
+            -d '{"SeniorCitizen": 0, "Partner": "Yes", "Dependents": "No", "tenure": 12,
+                 "PhoneService": "Yes", "MultipleLines": "No", "InternetService": "DSL",
+                 "OnlineSecurity": "Yes", "OnlineBackup": "No", "DeviceProtection": "No",
+                 "TechSupport": "No", "StreamingTV": "No", "StreamingMovies": "No",
+                 "Contract": "Month-to-month", "PaperlessBilling": "Yes",
+                 "PaymentMethod": "Electronic check", "MonthlyCharges": 29.85,
+                 "TotalCharges": 358.2}' | tee predict.json
+          echo
+          grep -q '"churn_probability"' predict.json
+
+          # Invalid input must be rejected with 422.
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:5000/predict \
+            -H "Content-Type: application/json" -d '{"tenure": "abc"}')
+          test "$code" = "422"
+
+      - name: Container logs on failure
+        if: failure()
+        run: docker logs api || true
