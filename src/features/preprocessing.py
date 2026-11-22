@@ -22,8 +22,12 @@ def load_config(path: str = "configs/pipeline_config.yaml") -> dict:
         return yaml.safe_load(f)["data"]
 
 
-def clean_raw(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
-    """Fix TotalCharges, encode the target, drop ID and sensitive columns."""
+def fix_types(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
+    """Fix TotalCharges and encode the target. Keeps every column.
+
+    customerID is kept for the feature store (entity key) and gender for the
+    fairness check; both are removed by drop_unused() before training.
+    """
     out = df.copy()
 
     # TotalCharges arrives as text. The 11 blank rows all have tenure == 0.
@@ -40,8 +44,17 @@ def clean_raw(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
 
     target = cfg["target"]
     out[target] = (out[target] == "Yes").astype("int64")
+    return out
 
-    return out.drop(columns=cfg["drop_columns"])
+
+def drop_unused(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
+    """Drop the ID and the sensitive attribute (not model inputs)."""
+    return df.drop(columns=cfg["drop_columns"])
+
+
+def clean_raw(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
+    """Fix TotalCharges, encode the target, drop ID and sensitive columns."""
+    return drop_unused(fix_types(df, cfg), cfg)
 
 
 def split_data(df: pd.DataFrame, cfg: dict):
@@ -87,3 +100,27 @@ def build_preprocessor(X: pd.DataFrame) -> ColumnTransformer:
             ("cat", OneHotEncoder(handle_unknown="ignore", sparse_output=False), categorical),
         ]
     )
+
+
+def load_processed(cfg: dict) -> pd.DataFrame:
+    """Read the DVC-tracked processed dataset and drop non-model columns."""
+    path = Path(cfg["processed_path"])
+    if not path.exists():
+        raise FileNotFoundError(f"{path} not found. Run `dvc repro preprocess` or `dvc pull`.")
+    return drop_unused(pd.read_parquet(path), cfg)
+
+
+def main(cfg_path: str = "configs/pipeline_config.yaml") -> Path:
+    """DVC stage `preprocess`: raw CSV -> typed Parquet (all columns kept)."""
+    cfg = load_config(cfg_path)
+    processed = fix_types(pd.read_csv(cfg["raw_path"]), cfg)
+    out = Path(cfg["processed_path"])
+    out.parent.mkdir(parents=True, exist_ok=True)
+    processed.to_parquet(out, index=False)
+    logger.info("Wrote %s: %d rows, %d columns", out, *processed.shape)
+    return out
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    main()

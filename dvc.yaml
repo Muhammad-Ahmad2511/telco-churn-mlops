@@ -1,0 +1,51 @@
+# dvc.yaml - reproducible ML pipeline (spec §3.2).
+# Run everything:          dvc repro
+# Show the graph:          dvc dag
+# Show/compare metrics:    dvc metrics show   |   dvc metrics diff main
+# A stage only re-runs when its deps, params or command change.
+stages:
+  validate:
+    cmd: python -m src.data.validation data/raw/telco_churn.csv --report reports/validation.json
+    deps:
+      - data/raw/telco_churn.csv
+      - src/data/validation.py
+    outs:
+      - reports/validation.json:
+          cache: false
+
+  preprocess:
+    cmd: python -m src.features.preprocessing
+    deps:
+      - data/raw/telco_churn.csv
+      - reports/validation.json
+      - src/features/preprocessing.py
+    params:
+      - configs/pipeline_config.yaml:
+          - data.target
+          - data.processed_path
+    outs:
+      - data/processed/telco_clean.parquet
+
+  tune:
+    # --enforce-gate: the stage fails (and dvc.lock is not updated) if the quality gate fails.
+    cmd: python -m src.models.tune --enforce-gate
+    deps:
+      - data/processed/telco_clean.parquet
+      - src/features/preprocessing.py
+      - src/models/tune.py
+      - src/models/evaluate.py
+    params:
+      - configs/pipeline_config.yaml:
+          - data.drop_columns
+          - data.test_size
+          - data.val_size
+          - data.random_state
+      - configs/model_params.yaml:
+          - tuning
+          - thresholds
+    metrics:
+      - reports/metrics.json:
+          cache: false
+    outs:
+      - reports/model_comparison.csv:
+          cache: false

@@ -6,7 +6,7 @@ scores it on the validation split (one nested MLflow run each), picks the winner
 refits it on train + validation, scores it once on the untouched test split and
 applies the quality gate.
 
-Run from the repo root:
+Run from the repo root (normally via `dvc repro`, stage `tune`):
     python -m src.models.tune
     python -m src.models.tune --enforce-gate   # exit code 1 if the gate fails
 Then register the winner with:  python -m src.models.register
@@ -14,6 +14,7 @@ Then register the winner with:  python -m src.models.register
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import sys
 import time
@@ -39,11 +40,10 @@ from sklearn.metrics import (
 from sklearn.model_selection import ParameterGrid
 from sklearn.pipeline import Pipeline
 
-from src.data.validation import validate_raw
 from src.features.preprocessing import (
     build_preprocessor,
-    clean_raw,
     load_config,
+    load_processed,
     split_train_val_test,
 )
 from src.models.evaluate import check_thresholds, compute_metrics
@@ -122,9 +122,27 @@ def _log_plots(y_true, y_pred, y_proba) -> None:
         plt.close(fig)
 
 
+def write_reports(report_dir: str, run_id: str, best: dict, metrics: dict, passed: bool,
+                  comparison: pd.DataFrame) -> None:
+    """Outputs of the DVC `tune` stage (`dvc metrics show` reads metrics.json)."""
+    out = Path(report_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    summary = {
+        "mlflow_run_id": run_id,
+        "selected_model": best["model_type"],
+        "selected_params": best["params"],
+        "quality_gate": "passed" if passed else "failed",
+        "test": {k: round(v, 4) for k, v in metrics.items()},
+        "best_val": {k: round(v, 4) for k, v in best["val_metrics"].items()},
+    }
+    (out / "metrics.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+    comparison.to_csv(out / "model_comparison.csv", index=False)
+
+
 def tune(
     model_cfg_path: str = "configs/model_params.yaml",
     pipeline_cfg_path: str = "configs/pipeline_config.yaml",
+    report_dir: str = "reports",
 ) -> tuple[dict, dict[str, float], bool]:
     load_dotenv()
     data_cfg = load_config(pipeline_cfg_path)
@@ -133,8 +151,8 @@ def tune(
     thresholds = cfg["thresholds"]
     rs = data_cfg["random_state"]
 
-    raw = validate_raw(pd.read_csv(data_cfg["raw_path"]))
-    clean = clean_raw(raw, data_cfg)
+    # Raw data was validated by the DVC `validate` stage; preprocess wrote the Parquet file.
+    clean = load_processed(data_cfg)
     X_train, X_val, X_test, y_train, y_val, y_test = split_train_val_test(clean, data_cfg)
 
     commit, dirty = git_info()
@@ -142,12 +160,12 @@ def tune(
         "git_commit": commit,
         "git_dirty": str(dirty),
         "dvc_data_md5": dvc_md5(data_cfg["raw_path"]),
-        "data_path": data_cfg["raw_path"],
+        "data_path": data_cfg["processed_path"],
     }
     mlflow.set_experiment(cfg["mlflow"]["experiment_name"])
     logger.info("MLflow tracking URI: %s", mlflow.get_tracking_uri())
 
-    with mlflow.start_run(run_name="tuning"):
+    with mlflow.start_run(run_name="tuning") as parent:
         mlflow.set_tags({**lineage, "run_type": "tuning"})
         mlflow.log_params(
             {
@@ -223,6 +241,7 @@ def tune(
             skops_trusted_types=SKOPS_TRUSTED_TYPES[best["model_type"]] or None,
         )
 
+    write_reports(report_dir, parent.info.run_id, best, metrics, passed, comparison)
     logger.info("Selected: %s %s", best["model_type"], best["params"])
     for name, value in metrics.items():
         logger.info("test %s = %.4f", name, value)
