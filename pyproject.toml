@@ -1,0 +1,4 @@
+[tool.pytest.ini_options]
+# Make `import src...` work no matter how pytest is launched (CI runs plain `pytest`).
+pythonpath = ["."]
+testpaths = ["tests"]

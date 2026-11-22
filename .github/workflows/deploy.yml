@@ -1,0 +1,16 @@
+# .github/workflows/deploy.yml
+# Placeholder until the AWS deployment phase (ECR + ECS Fargate, spec §3.9).
+# Manual trigger only, so it no longer fails on every push.
+name: Deploy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "AWS deployment not implemented yet (Phase 13)."
