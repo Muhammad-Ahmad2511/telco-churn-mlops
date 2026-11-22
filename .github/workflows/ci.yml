@@ -5,7 +5,7 @@ name: CI
 
 on:
   push:
-    branches: ["**"]
+    branches: [main]   # PR branches are covered by the pull_request trigger
   pull_request:
     branches: [main]
   workflow_dispatch:
