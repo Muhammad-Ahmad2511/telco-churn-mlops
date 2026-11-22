@@ -1,0 +1,8 @@
+{
+  "file": "data/raw/telco_churn.csv",
+  "schema": "raw_telco_churn",
+  "passed": true,
+  "rows": 7043,
+  "columns": 21,
+  "churn_rate": 0.2654
+}

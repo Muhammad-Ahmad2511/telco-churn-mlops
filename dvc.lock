@@ -1,0 +1,107 @@
+schema: '2.0'
+stages:
+  validate:
+    cmd: python -m src.data.validation data/raw/telco_churn.csv --report 
+      reports/validation.json
+    deps:
+    - path: data/raw/telco_churn.csv
+      hash: md5
+      md5: 0f9de68e012bd3aed5fa7cdc9fc421af
+      size: 977501
+    - path: src/data/validation.py
+      hash: md5
+      md5: c9dbd5616464effc7620a3d4959d2382
+      size: 4515
+    outs:
+    - path: reports/validation.json
+      hash: md5
+      md5: 52ffbe15d71411f1bb0f5f3f4fbf44fb
+      size: 155
+  preprocess:
+    cmd: python -m src.features.preprocessing
+    deps:
+    - path: data/raw/telco_churn.csv
+      hash: md5
+      md5: 0f9de68e012bd3aed5fa7cdc9fc421af
+      size: 977501
+    - path: reports/validation.json
+      hash: md5
+      md5: 52ffbe15d71411f1bb0f5f3f4fbf44fb
+      size: 155
+    - path: src/features/preprocessing.py
+      hash: md5
+      md5: 355a14dbacd9fd675e310c9ea60c29a9
+      size: 4565
+    params:
+      configs/pipeline_config.yaml:
+        data.processed_path: data/processed/telco_clean.parquet
+        data.target: Churn
+    outs:
+    - path: data/processed/telco_clean.parquet
+      hash: md5
+      md5: 3bcdfec91b24a734fe4d70b3461384de
+      size: 195247
+  tune:
+    cmd: python -m src.models.tune --enforce-gate
+    deps:
+    - path: data/processed/telco_clean.parquet
+      hash: md5
+      md5: 3bcdfec91b24a734fe4d70b3461384de
+      size: 195247
+    - path: src/features/preprocessing.py
+      hash: md5
+      md5: 355a14dbacd9fd675e310c9ea60c29a9
+      size: 4565
+    - path: src/models/evaluate.py
+      hash: md5
+      md5: 3ce0c609e900fd932f46370f1549becd
+      size: 1203
+    - path: src/models/tune.py
+      hash: md5
+      md5: d0b5e7fe916210650002e69684c3ffdc
+      size: 10896
+    params:
+      configs/model_params.yaml:
+        thresholds:
+          min_recall: 0.6
+          min_f1: 0.55
+        tuning:
+          selection_metric: f1
+          candidates:
+            logistic_regression:
+              C:
+              - 0.1
+              - 1.0
+              - 10.0
+            random_forest:
+              n_estimators:
+              - 300
+              max_depth:
+              - 8
+              - 16
+              min_samples_leaf:
+              - 1
+              - 5
+            hist_gradient_boosting:
+              learning_rate:
+              - 0.05
+              - 0.1
+              max_depth:
+              - 3
+              - 6
+      configs/pipeline_config.yaml:
+        data.drop_columns:
+        - customerID
+        - gender
+        data.random_state: 42
+        data.test_size: 0.2
+        data.val_size: 0.2
+    outs:
+    - path: reports/metrics.json
+      hash: md5
+      md5: 05e8d6431829f5f4fd9b3317cd6ba61b
+      size: 505
+    - path: reports/model_comparison.csv
+      hash: md5
+      md5: 14591d6701d207987b28a71380f0a367
+      size: 1129
