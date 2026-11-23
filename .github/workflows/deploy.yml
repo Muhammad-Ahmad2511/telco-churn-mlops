@@ -71,6 +71,13 @@ jobs:
         env:
           DAGSHUB_SECRET_ARN: ${{ secrets.DAGSHUB_SECRET_ARN }}
         run: |
+          # Strip stray spaces/newlines from the pasted secret and check its shape (value is never printed).
+          DAGSHUB_SECRET_ARN=$(printf '%s' "$DAGSHUB_SECRET_ARN" | tr -d '[:space:]')
+          case "$DAGSHUB_SECRET_ARN" in
+            arn:aws:secretsmanager:"$AWS_REGION":*:secret:telco-churn/dagshub-*) ;;
+            *) echo "::error::DAGSHUB_SECRET_ARN must look like arn:aws:secretsmanager:$AWS_REGION:<account>:secret:telco-churn/dagshub-XXXXXX"; exit 1 ;;
+          esac
+          export DAGSHUB_SECRET_ARN
           envsubst '${AWS_ACCOUNT_ID} ${AWS_REGION} ${IMAGE} ${DAGSHUB_SECRET_ARN}' \
             < deploy/aws/task-definition.json > task-definition.rendered.json
           TASK_DEF_ARN=$(aws ecs register-task-definition \
