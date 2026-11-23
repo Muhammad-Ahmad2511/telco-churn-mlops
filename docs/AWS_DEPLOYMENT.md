@@ -103,6 +103,8 @@ aws iam put-role-policy --role-name telco-churn-github-deploy \
 
 If `create-open-id-connect-provider` says the provider already exists, skip that command. If it asks for `--thumbprint-list`, check the current AWS documentation for "Create an OpenID Connect identity provider" for GitHub Actions; this step is not verified.
 
+**GitHub OIDC subject format (found during setup):** repositories created after 2026-07-15 get *immutable* subject claims that include numeric IDs: `repo:OWNER@OWNER_ID/REPO@REPO_ID:...`. This repository was created on 2026-11-06, so a name-only subject (`repo:Muhammad-Ahmad2511/telco-churn-mlops:environment:production`) was rejected with `Not authorized to perform sts:AssumeRoleWithWebIdentity`. The trust policy therefore lists both the ID form (owner id `179934485`, repo id `1448662404`, from `https://api.github.com/repos/Muhammad-Ahmad2511/telco-churn-mlops`) and the name form. Both still limit access to this repository's `production` environment. To update an existing role: `aws iam update-assume-role-policy --role-name telco-churn-github-deploy --policy-document file:///tmp/gh-trust.json` (after the `sed` above).
+
 The trust policy only lets **this repository's `production` environment** assume the role, and the permissions only allow pushing to one ECR repository and updating one ECS service.
 
 ### 7. ECS cluster, network and security group

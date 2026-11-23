@@ -11,7 +11,10 @@
       "Condition": {
         "StringEquals": {
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-          "token.actions.githubusercontent.com:sub": "repo:Muhammad-Ahmad2511/telco-churn-mlops:environment:production"
+          "token.actions.githubusercontent.com:sub": [
+            "repo:Muhammad-Ahmad2511@179934485/telco-churn-mlops@1448662404:environment:production",
+            "repo:Muhammad-Ahmad2511/telco-churn-mlops:environment:production"
+          ]
         }
       }
     }
