@@ -153,3 +153,19 @@ def test_single_threaded_sets_n_jobs_for_serving():
     assert single_threaded(pipe).named_steps["model"].n_jobs == 1
     bare = LogisticRegression(n_jobs=-1)
     assert single_threaded(bare).n_jobs == 1
+
+
+def test_configure_logging_adds_handler_only_once(monkeypatch):
+    import logging
+
+    from src.serving.app import configure_logging
+
+    root = logging.getLogger()
+    saved = root.handlers[:]
+    root.handlers = []
+    try:
+        configure_logging()
+        configure_logging()
+        assert len(root.handlers) == 1
+    finally:
+        root.handlers = saved

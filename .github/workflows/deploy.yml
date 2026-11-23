@@ -1,16 +1,122 @@
 # .github/workflows/deploy.yml
-# Placeholder until the AWS deployment phase (ECR + ECS Fargate, spec §3.9).
-# Manual trigger only, so it no longer fails on every push.
+# Continuous deployment to AWS ECS Fargate (spec §3.6, §3.9).
+#
+# Runs only after the CI workflow succeeds on main (or manually), and only after a
+# reviewer approves the "production" GitHub Environment (manual approval gate).
+# AWS access uses GitHub OIDC -> IAM role: no AWS keys are stored in GitHub.
+# One-time AWS setup and the secrets/variables used here: docs/AWS_DEPLOYMENT.md
 name: Deploy
 
 on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
+  id-token: write   # needed to request the OIDC token
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-southeast-2
+  ECR_REPOSITORY: telco-churn-api
+  ECS_CLUSTER: telco-churn
+  ECS_SERVICE: telco-churn-api
 
 jobs:
   deploy:
+    name: Deploy to ECS Fargate
+    # Never deploy a commit whose CI failed (quality gate).
+    # DEPLOY_ENABLED (repository variable) stays unset until the AWS setup in docs/AWS_DEPLOYMENT.md is done.
+    if: >-
+      vars.DEPLOY_ENABLED == 'true' &&
+      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment: production
     steps:
-      - run: echo "AWS deployment not implemented yet (Phase 13)."
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        run: |
+          AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          echo "::add-mask::$AWS_ACCOUNT_ID"
+          REGISTRY="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+          echo "AWS_ACCOUNT_ID=$AWS_ACCOUNT_ID" >> "$GITHUB_ENV"
+          echo "IMAGE=$REGISTRY/$ECR_REPOSITORY:${GITHUB_SHA_DEPLOY}" >> "$GITHUB_ENV"
+          aws ecr get-login-password --region "$AWS_REGION" \
+            | docker login --username AWS --password-stdin "$REGISTRY"
+        env:
+          GITHUB_SHA_DEPLOY: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Build and push image (tag = git commit)
+        run: |
+          docker build -f docker/Dockerfile.api -t "$IMAGE" .
+          docker push "$IMAGE"
+
+      - name: Register task definition
+        env:
+          DAGSHUB_SECRET_ARN: ${{ secrets.DAGSHUB_SECRET_ARN }}
+        run: |
+          envsubst '${AWS_ACCOUNT_ID} ${AWS_REGION} ${IMAGE} ${DAGSHUB_SECRET_ARN}' \
+            < deploy/aws/task-definition.json > task-definition.rendered.json
+          TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://task-definition.rendered.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "TASK_DEF_ARN=$TASK_DEF_ARN" >> "$GITHUB_ENV"
+          echo "Registered $TASK_DEF_ARN"
+
+      - name: Create or update the ECS service
+        env:
+          SUBNETS: ${{ vars.ECS_SUBNETS }}
+          SECURITY_GROUP: ${{ vars.ECS_SECURITY_GROUP }}
+        run: |
+          STATUS=$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE" \
+            --query 'services[0].status' --output text 2>/dev/null || echo MISSING)
+          if [ "$STATUS" = "ACTIVE" ]; then
+            aws ecs update-service --cluster "$ECS_CLUSTER" --service "$ECS_SERVICE" \
+              --task-definition "$TASK_DEF_ARN" --desired-count 1 >/dev/null
+          else
+            # First deployment. The circuit breaker rolls back automatically if new tasks never get healthy.
+            aws ecs create-service --cluster "$ECS_CLUSTER" --service-name "$ECS_SERVICE" \
+              --task-definition "$TASK_DEF_ARN" --desired-count 1 --launch-type FARGATE \
+              --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUP],assignPublicIp=ENABLED}" \
+              --deployment-configuration "deploymentCircuitBreaker={enable=true,rollback=true},maximumPercent=200,minimumHealthyPercent=0" \
+              >/dev/null
+          fi
+
+      - name: Wait until the service is stable and the task is HEALTHY
+        run: |
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE"
+          TASK=$(aws ecs list-tasks --cluster "$ECS_CLUSTER" --service-name "$ECS_SERVICE" \
+            --desired-status RUNNING --query 'taskArns[0]' --output text)
+          for i in $(seq 1 20); do
+            read -r HEALTH TASKDEF <<< "$(aws ecs describe-tasks --cluster "$ECS_CLUSTER" --tasks "$TASK" \
+              --query 'tasks[0].[healthStatus,taskDefinitionArn]' --output text)"
+            echo "health=$HEALTH"
+            [ "$HEALTH" = "HEALTHY" ] && break
+            sleep 15
+          done
+          test "$HEALTH" = "HEALTHY"
+          test "$TASKDEF" = "$TASK_DEF_ARN"   # running the version we just deployed
+          # The public IP is not printed: this repository and its Actions logs are public.
+          # Find it in the ECS console (task > Networking) or with docs/AWS_DEPLOYMENT.md step 9.
+          {
+            echo "### Deployed to ECS Fargate"
+            echo "- Image tag: \`${IMAGE##*:}\`"
+            echo "- Task definition: \`${TASK_DEF_ARN##*/}\`"
+            echo "- Task health: **$HEALTH** (container health check calls /health, which loads the production model)"
+          } >> "$GITHUB_STEP_SUMMARY"
