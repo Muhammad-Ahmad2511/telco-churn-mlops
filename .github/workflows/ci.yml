@@ -149,6 +149,12 @@ jobs:
             -H "Content-Type: application/json" -d '{"tenure": "abc"}')
           test "$code" = "422"
 
+          # Prometheus metrics must reflect the requests above.
+          curl -sf http://localhost:5000/metrics > metrics.txt
+          grep -E '^telco_predictions_total\{.*\} 1\.0$' metrics.txt
+          grep -E '^telco_validation_failures_total\{reason="schema"\} 1\.0$' metrics.txt
+          grep -E '^telco_model_loaded 1\.0$' metrics.txt
+
       - name: Container logs on failure
         if: failure()
         run: docker logs api || true
