@@ -2,7 +2,7 @@
 """Load the approved model from the MLflow Model Registry.
 
 Smoke test (needs .env): python -m src.serving.model_loader
-Alias comes from env MODEL_ALIAS (default: candidate). Later: production.
+Alias comes from env MODEL_ALIAS (default: production; set by src.models.promote).
 """
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ def load_registered_model(cfg_path: str = "configs/model_params.yaml") -> ModelB
     load_dotenv()
     cfg = yaml.safe_load(Path(cfg_path).read_text(encoding="utf-8"))
     name = cfg["registry"]["model_name"]
-    alias = os.getenv("MODEL_ALIAS", "candidate")
+    alias = os.getenv("MODEL_ALIAS", "production")
 
     mv = MlflowClient().get_model_version_by_alias(name, alias)
     model = None
