@@ -12,6 +12,7 @@ __pycache__/
 .coverage
 htmlcov/
 test-reports/
+reports/drift/
 
 # data (tracked by DVC, not git)
 data/raw/*.csv
