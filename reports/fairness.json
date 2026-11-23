@@ -1,0 +1,299 @@
+{
+  "model_name": "telco-churn-classifier",
+  "test_rows": 1409,
+  "note": "gender is not a model input; SeniorCitizen is",
+  "versions": [
+    {
+      "version": "1",
+      "model_type": "LogisticRegression",
+      "groups": {
+        "gender": {
+          "per_group": {
+            "Female": {
+              "n": 687,
+              "actual_churn_rate": 0.2809,
+              "selection_rate": 0.4148,
+              "recall": 0.7772,
+              "false_positive_rate": 0.2733,
+              "precision": 0.5263
+            },
+            "Male": {
+              "n": 722,
+              "actual_churn_rate": 0.2507,
+              "selection_rate": 0.4114,
+              "recall": 0.7901,
+              "false_positive_rate": 0.2847,
+              "precision": 0.4815
+            }
+          },
+          "recall_gap": 0.0129,
+          "false_positive_rate_gap": 0.0114,
+          "precision_gap": 0.0448,
+          "selection_rate_gap": 0.0034
+        },
+        "SeniorCitizen": {
+          "per_group": {
+            "0": {
+              "n": 1187,
+              "actual_churn_rate": 0.2325,
+              "selection_rate": 0.3606,
+              "recall": 0.7319,
+              "false_positive_rate": 0.2481,
+              "precision": 0.472
+            },
+            "1": {
+              "n": 222,
+              "actual_churn_rate": 0.4414,
+              "selection_rate": 0.6937,
+              "recall": 0.9286,
+              "false_positive_rate": 0.5081,
+              "precision": 0.5909
+            }
+          },
+          "recall_gap": 0.1967,
+          "false_positive_rate_gap": 0.26,
+          "precision_gap": 0.1189,
+          "selection_rate_gap": 0.3331
+        }
+      },
+      "permutation_importance_f1": [
+        {
+          "feature": "tenure",
+          "mean": 0.1522,
+          "std": 0.0036
+        },
+        {
+          "feature": "MonthlyCharges",
+          "mean": 0.0313,
+          "std": 0.0037
+        },
+        {
+          "feature": "Contract",
+          "mean": 0.0304,
+          "std": 0.0116
+        },
+        {
+          "feature": "InternetService",
+          "mean": 0.0272,
+          "std": 0.0078
+        },
+        {
+          "feature": "OnlineSecurity",
+          "mean": 0.0035,
+          "std": 0.0025
+        },
+        {
+          "feature": "PaymentMethod",
+          "mean": 0.0017,
+          "std": 0.0036
+        },
+        {
+          "feature": "MultipleLines",
+          "mean": 0.0005,
+          "std": 0.0034
+        },
+        {
+          "feature": "Partner",
+          "mean": 0.0003,
+          "std": 0.0007
+        },
+        {
+          "feature": "TechSupport",
+          "mean": -0.0005,
+          "std": 0.0046
+        },
+        {
+          "feature": "StreamingMovies",
+          "mean": -0.0007,
+          "std": 0.0051
+        },
+        {
+          "feature": "TotalCharges",
+          "mean": -0.0013,
+          "std": 0.0071
+        },
+        {
+          "feature": "SeniorCitizen",
+          "mean": -0.0013,
+          "std": 0.0006
+        },
+        {
+          "feature": "Dependents",
+          "mean": -0.0018,
+          "std": 0.0021
+        },
+        {
+          "feature": "PhoneService",
+          "mean": -0.0022,
+          "std": 0.0008
+        },
+        {
+          "feature": "StreamingTV",
+          "mean": -0.003,
+          "std": 0.0051
+        },
+        {
+          "feature": "OnlineBackup",
+          "mean": -0.0042,
+          "std": 0.0029
+        },
+        {
+          "feature": "PaperlessBilling",
+          "mean": -0.0042,
+          "std": 0.003
+        },
+        {
+          "feature": "DeviceProtection",
+          "mean": -0.0061,
+          "std": 0.0017
+        }
+      ]
+    },
+    {
+      "version": "2",
+      "model_type": "RandomForestClassifier",
+      "groups": {
+        "gender": {
+          "per_group": {
+            "Female": {
+              "n": 687,
+              "actual_churn_rate": 0.2809,
+              "selection_rate": 0.3799,
+              "recall": 0.7461,
+              "false_positive_rate": 0.2368,
+              "precision": 0.5517
+            },
+            "Male": {
+              "n": 722,
+              "actual_churn_rate": 0.2507,
+              "selection_rate": 0.3934,
+              "recall": 0.8011,
+              "false_positive_rate": 0.2569,
+              "precision": 0.5106
+            }
+          },
+          "recall_gap": 0.055,
+          "false_positive_rate_gap": 0.0201,
+          "precision_gap": 0.0411,
+          "selection_rate_gap": 0.0135
+        },
+        "SeniorCitizen": {
+          "per_group": {
+            "0": {
+              "n": 1187,
+              "actual_churn_rate": 0.2325,
+              "selection_rate": 0.3395,
+              "recall": 0.7355,
+              "false_positive_rate": 0.2195,
+              "precision": 0.5037
+            },
+            "1": {
+              "n": 222,
+              "actual_churn_rate": 0.4414,
+              "selection_rate": 0.6396,
+              "recall": 0.8776,
+              "false_positive_rate": 0.4516,
+              "precision": 0.6056
+            }
+          },
+          "recall_gap": 0.1421,
+          "false_positive_rate_gap": 0.2321,
+          "precision_gap": 0.1019,
+          "selection_rate_gap": 0.3001
+        }
+      },
+      "permutation_importance_f1": [
+        {
+          "feature": "Contract",
+          "mean": 0.1056,
+          "std": 0.0127
+        },
+        {
+          "feature": "InternetService",
+          "mean": 0.0375,
+          "std": 0.0115
+        },
+        {
+          "feature": "tenure",
+          "mean": 0.0326,
+          "std": 0.0054
+        },
+        {
+          "feature": "TotalCharges",
+          "mean": 0.0276,
+          "std": 0.0041
+        },
+        {
+          "feature": "TechSupport",
+          "mean": 0.0059,
+          "std": 0.0022
+        },
+        {
+          "feature": "PaperlessBilling",
+          "mean": 0.0036,
+          "std": 0.0048
+        },
+        {
+          "feature": "Partner",
+          "mean": 0.0027,
+          "std": 0.0021
+        },
+        {
+          "feature": "PhoneService",
+          "mean": 0.0005,
+          "std": 0.0018
+        },
+        {
+          "feature": "OnlineSecurity",
+          "mean": 0.0004,
+          "std": 0.0028
+        },
+        {
+          "feature": "OnlineBackup",
+          "mean": -0.0005,
+          "std": 0.0069
+        },
+        {
+          "feature": "PaymentMethod",
+          "mean": -0.0008,
+          "std": 0.0063
+        },
+        {
+          "feature": "StreamingTV",
+          "mean": -0.0008,
+          "std": 0.0044
+        },
+        {
+          "feature": "Dependents",
+          "mean": -0.0015,
+          "std": 0.0031
+        },
+        {
+          "feature": "SeniorCitizen",
+          "mean": -0.0019,
+          "std": 0.0018
+        },
+        {
+          "feature": "StreamingMovies",
+          "mean": -0.0027,
+          "std": 0.0027
+        },
+        {
+          "feature": "MultipleLines",
+          "mean": -0.0028,
+          "std": 0.0016
+        },
+        {
+          "feature": "MonthlyCharges",
+          "mean": -0.0038,
+          "std": 0.0055
+        },
+        {
+          "feature": "DeviceProtection",
+          "mean": -0.0047,
+          "std": 0.0046
+        }
+      ]
+    }
+  ]
+}
