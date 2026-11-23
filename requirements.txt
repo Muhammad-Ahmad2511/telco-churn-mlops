@@ -13,3 +13,4 @@ ruff==0.17.5
 gunicorn==26.2.0
 pyarrow==26.0.1
 prometheus-client==0.26.0
+scipy==1.18.1

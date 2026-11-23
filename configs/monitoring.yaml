@@ -1,0 +1,21 @@
+# configs/monitoring.yaml - data drift and data-quality check (src/monitoring/monitor.py).
+# Same statistical approach as Evidently's defaults for small samples:
+#   numeric columns     -> two-sample Kolmogorov-Smirnov test
+#   categorical columns -> chi-square test on category counts
+drift:
+  p_value_threshold: 0.05     # a column has drifted if p < this
+  drift_share: 0.25           # dataset drift (retraining trigger) if >= 25% of columns drifted
+  min_rows: 100               # refuse to judge drift on tiny samples
+  report_dir: reports/drift
+
+# Simulated drift used for the demo (NOT real production data):
+# prices rise, customers are newer, more month-to-month contracts, more fiber, more e-checks.
+simulation:
+  sample_size: 500
+  monthly_charges_factor: 1.3
+  tenure_factor: 0.6
+  shift_share: 0.4            # share of rows whose categories are moved to the values below
+  categorical_shift:
+    Contract: Month-to-month
+    InternetService: Fiber optic
+    PaymentMethod: Electronic check
