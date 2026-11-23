@@ -8,6 +8,7 @@ Metrics:    GET /metrics (Prometheus text format, see src/serving/metrics.py)
 from __future__ import annotations
 
 import logging
+import os
 import time
 
 from flask import Flask, Response, g, jsonify, request
@@ -20,7 +21,20 @@ from src.serving.schema import FEATURE_ORDER, to_dataframe, validate_payload
 logger = logging.getLogger("telco_api")
 
 
+def configure_logging() -> None:
+    """Send INFO logs to stdout (-> docker logs / CloudWatch) unless already configured.
+
+    Only counts, model version and latency are logged, never request contents.
+    """
+    if not logging.getLogger().handlers:
+        logging.basicConfig(
+            level=os.getenv("LOG_LEVEL", "INFO").upper(),
+            format="%(asctime)s %(levelname)s %(name)s %(message)s",
+        )
+
+
 def create_app(store: ModelStore | None = None) -> Flask:
+    configure_logging()
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = 64 * 1024  # reject huge bodies
     store = store or ModelStore()
@@ -140,5 +154,4 @@ def create_app(store: ModelStore | None = None) -> Flask:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     create_app().run(host="127.0.0.1", port=5000)

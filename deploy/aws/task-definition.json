@@ -1,0 +1,44 @@
+{
+  "family": "telco-churn-api",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "runtimePlatform": { "cpuArchitecture": "X86_64", "operatingSystemFamily": "LINUX" },
+  "executionRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/telco-churn-ecs-execution",
+  "containerDefinitions": [
+    {
+      "name": "api",
+      "image": "${IMAGE}",
+      "essential": true,
+      "portMappings": [{ "containerPort": 5000, "protocol": "tcp" }],
+      "environment": [
+        { "name": "MODEL_ALIAS", "value": "production" },
+        { "name": "MLFLOW_TRACKING_URI", "value": "https://dagshub.com/Muhammad-Ahmad2511/telco-churn-mlops.mlflow" },
+        { "name": "LOG_LEVEL", "value": "INFO" }
+      ],
+      "secrets": [
+        { "name": "MLFLOW_TRACKING_USERNAME", "valueFrom": "${DAGSHUB_SECRET_ARN}:username::" },
+        { "name": "MLFLOW_TRACKING_PASSWORD", "valueFrom": "${DAGSHUB_SECRET_ARN}:token::" }
+      ],
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=8)\" || exit 1"
+        ],
+        "interval": 30,
+        "timeout": 10,
+        "retries": 3,
+        "startPeriod": 180
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/telco-churn-api",
+          "awslogs-region": "${AWS_REGION}",
+          "awslogs-stream-prefix": "api"
+        }
+      }
+    }
+  ]
+}
