@@ -9,4 +9,8 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 *.pkl
-*.db
+*.db*.pdf
+docs/
+monitoring/
+reports/
+project-plan.md

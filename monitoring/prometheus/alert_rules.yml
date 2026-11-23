@@ -1,0 +1,58 @@
+# monitoring/prometheus/alert_rules.yml
+# Operational thresholds for the churn API (spec §3.12 / §3.12A: "at least one alert").
+# Investigation steps for each alert are in the `runbook` annotation.
+groups:
+  - name: telco-churn-api
+    rules:
+      - alert: TelcoApiDown
+        expr: up{job="telco-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Churn API is not reachable by Prometheus"
+          runbook: "docker compose ps; docker compose logs api; check /health and the MLflow registry."
+
+      - alert: TelcoModelNotLoaded
+        expr: telco_model_loaded == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API is up but has no model loaded (/health returns 503)"
+          runbook: "Check DagsHub credentials and that the `production` alias exists (python -m src.models.promote compare)."
+
+      - alert: TelcoHighServerErrorRate
+        expr: |
+          sum(rate(telco_api_requests_total{status=~"5.."}[5m]))
+            / clamp_min(sum(rate(telco_api_requests_total[5m])), 1e-9) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "More than 5% of API requests return 5xx"
+          runbook: "docker compose logs api; look for model load or prediction errors."
+
+      - alert: TelcoHighValidationFailureRate
+        # Data-quality signal: many rejected inputs can mean a broken client or changed upstream data.
+        expr: |
+          sum(rate(telco_validation_failures_total[5m]))
+            / clamp_min(sum(rate(telco_api_requests_total{endpoint="/predict"}[5m])), 1e-9) > 0.2
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "More than 20% of /predict requests fail validation"
+          runbook: "Inspect telco_validation_failures_total by reason; compare incoming data with the training schema; if inputs legitimately changed, run the Evidently drift check and consider retraining."
+
+      - alert: TelcoHighLatencyP95
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(telco_api_request_latency_seconds_bucket{endpoint="/predict"}[5m]))
+          ) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p95 /predict latency above 500 ms"
+          runbook: "Check container CPU/memory (docker stats); batch sizes; model size."

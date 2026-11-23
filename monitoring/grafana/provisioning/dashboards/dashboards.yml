@@ -1,0 +1,9 @@
+# Loads every dashboard JSON from /var/lib/grafana/dashboards.
+apiVersion: 1
+providers:
+  - name: telco-churn
+    folder: Telco Churn
+    type: file
+    disableDeletion: true
+    options:
+      path: /var/lib/grafana/dashboards
