@@ -1,0 +1,13 @@
+# k8s/kind-cluster.yaml - local Kubernetes cluster for the scaling demo (spec §3.10).
+#   kind create cluster --name telco --config k8s/kind-cluster.yaml
+# NodePort 30500 (k8s/api-service.yaml) is published on the laptop as http://127.0.0.1:5050,
+# so requests go through the Service and kube-proxy spreads them across all pods.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30500
+        hostPort: 5050
+        listenAddress: "127.0.0.1"
+        protocol: TCP
