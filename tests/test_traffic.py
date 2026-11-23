@@ -26,3 +26,18 @@ def test_make_invalid_does_not_modify_input():
     original = dict(SAMPLE_RECORD)
     make_invalid(SAMPLE_RECORD, random.Random(0))
     assert SAMPLE_RECORD == original
+
+
+@pytest.mark.parametrize("url", ["file:///etc/passwd", "ftp://example.com", "127.0.0.1:5000"])
+def test_only_http_urls_allowed(url):
+    from src.monitoring.traffic import check_http_url
+
+    with pytest.raises(ValueError):
+        check_http_url(url)
+
+
+def test_http_and_https_urls_allowed():
+    from src.monitoring.traffic import check_http_url
+
+    assert check_http_url("http://127.0.0.1:5000")
+    assert check_http_url("https://example.com")

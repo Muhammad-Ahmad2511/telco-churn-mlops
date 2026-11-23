@@ -14,6 +14,7 @@ import json
 import random
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections import Counter
 
@@ -46,7 +47,15 @@ def make_invalid(record: dict, rng: random.Random) -> dict:
     return bad
 
 
+def check_http_url(url: str) -> str:
+    """Only http(s) is allowed: urlopen would also accept file:// and read local files."""
+    if urllib.parse.urlsplit(url).scheme not in ("http", "https"):
+        raise ValueError(f"URL must start with http:// or https://, got {url!r}")
+    return url
+
+
 def post(url: str, payload: dict, timeout: float = 10.0) -> int:
+    check_http_url(url)
     req = urllib.request.Request(
         f"{url.rstrip('/')}/predict",
         data=json.dumps(payload).encode("utf-8"),
@@ -54,7 +63,8 @@ def post(url: str, payload: dict, timeout: float = 10.0) -> int:
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        # B310 reviewed: the scheme is limited to http/https by check_http_url() above.
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310
             return resp.status
     except urllib.error.HTTPError as err:
         return err.code
@@ -71,6 +81,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args(argv)
 
+    check_http_url(args.url)  # fail fast before sending anything
     rng = random.Random(args.seed)
     statuses: Counter[int] = Counter()
     for record in sample_records(args.n, args.seed):
