@@ -141,3 +141,15 @@ def test_error_response_does_not_echo_input(client):
     r = client.post("/predict", json=record(Contract="SECRET-VALUE-123"))
     assert r.status_code == 422
     assert "SECRET-VALUE-123" not in r.get_data(as_text=True)
+
+def test_single_threaded_sets_n_jobs_for_serving():
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.pipeline import Pipeline
+
+    from src.serving.model_loader import single_threaded
+
+    pipe = Pipeline([("model", RandomForestClassifier(n_jobs=-1))])
+    assert single_threaded(pipe).named_steps["model"].n_jobs == 1
+    bare = LogisticRegression(n_jobs=-1)
+    assert single_threaded(bare).n_jobs == 1

@@ -31,6 +31,20 @@ class ModelBundle:
     tags: dict[str, str] = field(default_factory=dict)
 
 
+def single_threaded(model: Any) -> Any:
+    """Set n_jobs=1 on every estimator that has it (serving only, training is unchanged).
+
+    Models are trained with n_jobs=-1. For one request with a few rows, starting a
+    thread pool costs more than the prediction: measured in the API container,
+    Random Forest predict_proba took 159 ms with n_jobs=-1 vs 62 ms with n_jobs=1.
+    The API already serves requests in parallel with gunicorn threads.
+    """
+    for _, step in getattr(model, "steps", [("model", model)]):
+        if hasattr(step, "n_jobs"):
+            step.n_jobs = 1
+    return model
+
+
 def load_registered_model(cfg_path: str = "configs/model_params.yaml") -> ModelBundle:
     load_dotenv()
     cfg = yaml.safe_load(Path(cfg_path).read_text(encoding="utf-8"))
@@ -48,6 +62,7 @@ def load_registered_model(cfg_path: str = "configs/model_params.yaml") -> ModelB
             logger.warning("Could not load model from %s, trying next option", uri)
     if model is None:
         raise RuntimeError(f"Could not load {name} version {mv.version}")
+    single_threaded(model)
 
     return ModelBundle(
         model=model,

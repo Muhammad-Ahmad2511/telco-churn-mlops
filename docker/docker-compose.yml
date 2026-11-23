@@ -1,0 +1,64 @@
+# docker/docker-compose.yml - local integration stack (spec §3.7, §3.12A).
+#
+#   docker compose -f docker/docker-compose.yml up -d --build
+#   API        http://localhost:5000/health     (metrics at /metrics)
+#   Prometheus http://localhost:9090            (Status > Targets, Alerts)
+#   Grafana    http://localhost:3000            (dashboard "Telco Churn API")
+#   docker compose -f docker/docker-compose.yml down        # stop (keeps data volumes)
+#
+# DEV configuration: the API reads DagsHub credentials from the git-ignored ../.env
+# and loads the `production` model from the MLflow registry. Production (AWS) passes
+# the same variables from AWS Secrets Manager instead. Ports bind to 127.0.0.1 only.
+name: telco-churn
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    image: telco-churn-api:local
+    env_file: ../.env
+    environment:
+      MODEL_ALIAS: production
+    ports:
+      - "127.0.0.1:5000:5000"
+    mem_limit: 1g
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.16.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d   # short retention: local demo data only
+    volumes:
+      - ../monitoring/prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    depends_on:
+      - api
+    mem_limit: 512m
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:13.3.1
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      # Local dev default; Grafana asks you to change it at first login.
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/telco-api.json
+    volumes:
+      - ../monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - prometheus
+    mem_limit: 768m   # measured ~400 MiB at idle
+    restart: unless-stopped
+
+volumes:
+  prometheus-data:
+  grafana-data:

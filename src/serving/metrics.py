@@ -12,7 +12,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram
+from prometheus_client import (
+    CollectorRegistry,
+    Counter,
+    Gauge,
+    Histogram,
+    PlatformCollector,
+    ProcessCollector,
+)
 
 LATENCY_BUCKETS = (0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0)
 
@@ -31,6 +38,9 @@ class ApiMetrics:
 
 def create_metrics() -> ApiMetrics:
     registry = CollectorRegistry()
+    # CPU, memory and open-file metrics (process_*). Linux only: empty on Windows dev machines.
+    ProcessCollector(registry=registry)
+    PlatformCollector(registry=registry)
     return ApiMetrics(
         registry=registry,
         requests=Counter(

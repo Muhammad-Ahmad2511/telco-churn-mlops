@@ -1,0 +1,64 @@
+# Grafana-managed alert rules (spec §3.12: "Grafana to visualize them and configure alerts").
+# The same conditions also exist as Prometheus rules in monitoring/prometheus/alert_rules.yml.
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: telco-churn-api
+    folder: Telco Churn
+    interval: 30s
+    rules:
+      - uid: telco-api-down
+        title: Churn API down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              expr: up{job="telco-api"}
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+        noDataState: Alerting
+        execErrState: Error
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: Prometheus cannot scrape the churn API.
+          runbook: docker compose ps; docker compose logs api; check /health and the MLflow registry.
+
+      - uid: telco-validation-failures
+        title: High validation failure rate
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              expr: >-
+                sum(rate(telco_validation_failures_total[2m]))
+                / clamp_min(sum(rate(telco_api_requests_total{endpoint="/predict"}[2m])), 1e-9)
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0.2] }
+        noDataState: OK
+        execErrState: Error
+        for: 1m
+        labels: { severity: warning }
+        annotations:
+          summary: More than 20% of /predict requests fail input validation (data-quality issue).
+          runbook: Check telco_validation_failures_total by reason; compare inputs with the training schema; run the Evidently drift check; retrain if inputs legitimately changed.
