@@ -169,3 +169,46 @@ def test_configure_logging_adds_handler_only_once(monkeypatch):
         assert len(root.handlers) == 1
     finally:
         root.handlers = saved
+
+
+def test_model_store_loads_once_and_never_blocks_other_callers():
+    """Regression: concurrent /health calls each downloaded the model and starved /metrics."""
+    import threading
+    import time
+
+    calls = []
+    release = threading.Event()
+
+    def slow_loader():
+        calls.append(1)
+        release.wait(timeout=5)
+        return BUNDLE
+
+    store = ModelStore(loader=slow_loader)
+    loader_thread = store.warm_up()
+    time.sleep(0.05)  # let the warm-up thread start loading
+
+    started = time.perf_counter()
+    results = [store.get() for _ in range(20)]  # e.g. probes arriving during the download
+    assert time.perf_counter() - started < 0.5  # answered immediately, nobody waited
+    assert results == [None] * 20
+
+    release.set()
+    loader_thread.join(timeout=5)
+    assert store.get() is BUNDLE
+    assert len(calls) == 1  # one download, not one per request
+
+
+def test_model_store_retries_after_failed_load():
+    attempts = []
+
+    def flaky_loader():
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise RuntimeError("registry down")
+        return BUNDLE
+
+    store = ModelStore(loader=flaky_loader)
+    assert store.get() is None
+    assert store.get() is BUNDLE
+    assert len(attempts) == 2

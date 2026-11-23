@@ -37,7 +37,11 @@ def create_app(store: ModelStore | None = None) -> Flask:
     configure_logging()
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = 64 * 1024  # reject huge bodies
-    store = store or ModelStore()
+    if store is None:
+        # Production path: download the model in the background right away, so probes and
+        # /metrics stay responsive while it loads. (Tests inject their own store.)
+        store = ModelStore()
+        store.warm_up()
     metrics = create_metrics()
     app.extensions["metrics"] = metrics
 

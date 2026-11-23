@@ -1,0 +1,74 @@
+# k8s/api-deployment.yaml - churn API on Kubernetes (spec §3.10).
+#
+# Prerequisites (see k8s/README.md):
+#   kubectl create secret generic dagshub-credentials --from-env-file=.env   # never committed
+#   kind load docker-image telco-churn-api:local --name telco
+#
+# Probes:
+#   readiness -> /health : 200 only once the `production` model is loaded, so a pod gets
+#                          traffic from the Service only when it can really predict.
+#   liveness  -> /metrics: answers whenever the process is alive. Deliberately NOT /health,
+#                          so a temporary DagsHub/MLflow outage does not make Kubernetes
+#                          restart pods that are otherwise fine.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telco-churn-api
+  labels:
+    app: telco-churn-api
+spec:
+  replicas: 3
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app: telco-churn-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0   # keep full capacity during an update
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: telco-churn-api
+    spec:
+      containers:
+        - name: api
+          image: telco-churn-api:local
+          imagePullPolicy: IfNotPresent   # image is loaded into kind, not pulled from a registry
+          ports:
+            - name: http
+              containerPort: 5000
+          env:
+            - name: MODEL_ALIAS
+              value: production
+            - name: LOG_LEVEL
+              value: INFO
+          envFrom:
+            - secretRef:
+                name: dagshub-credentials   # MLFLOW_TRACKING_URI / USERNAME / PASSWORD
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi   # measured ~430-460 MiB per API process
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false   # image already runs as non-root user `appuser`

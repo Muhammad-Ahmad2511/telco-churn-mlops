@@ -1,0 +1,40 @@
+# k8s/aws-iam-role-policy.yaml - reference manifest listed in the course repository structure.
+#
+# The project deploys to AWS ECS Fargate, not EKS, so this is not applied with kubectl.
+# It documents, in one place, the least-privilege IAM permissions the AWS deployment uses.
+# The JSON files that are actually applied (via AWS CloudShell) live in deploy/aws/iam/;
+# setup steps: docs/AWS_DEPLOYMENT.md.
+roles:
+  - name: telco-churn-github-deploy
+    purpose: Assumed by GitHub Actions through OIDC (no stored AWS keys) to deploy the API.
+    trust:
+      principal: arn:aws:iam::ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com
+      conditions:
+        aud: sts.amazonaws.com
+        sub:   # only this repository's `production` environment (both GitHub subject formats)
+          - repo:Muhammad-Ahmad2511@179934485/telco-churn-mlops@1448662404:environment:production
+          - repo:Muhammad-Ahmad2511/telco-churn-mlops:environment:production
+    permissions:
+      - actions: [ecr:GetAuthorizationToken]
+        resource: "*"
+      - actions: [ecr:BatchCheckLayerAvailability, ecr:BatchGetImage, ecr:CompleteLayerUpload,
+                  ecr:InitiateLayerUpload, ecr:PutImage, ecr:UploadLayerPart]
+        resource: arn:aws:ecr:ap-southeast-2:ACCOUNT_ID:repository/telco-churn-api
+      - actions: [ecs:RegisterTaskDefinition, ecs:DescribeTaskDefinition, ecs:ListTasks, ecs:DescribeTasks]
+        resource: "*"   # these ECS actions do not support resource-level permissions
+      - actions: [ecs:CreateService, ecs:UpdateService, ecs:DescribeServices]
+        resource: arn:aws:ecs:ap-southeast-2:ACCOUNT_ID:service/telco-churn/telco-churn-api
+      - actions: [iam:PassRole]
+        resource: arn:aws:iam::ACCOUNT_ID:role/telco-churn-ecs-execution
+        condition: {iam:PassedToService: ecs-tasks.amazonaws.com}
+    source: deploy/aws/iam/github-oidc-trust-policy.json, deploy/aws/iam/github-deploy-policy.json
+
+  - name: telco-churn-ecs-execution
+    purpose: Used by ECS to pull the image, write CloudWatch logs and inject the DagsHub secret.
+    trust:
+      principal: ecs-tasks.amazonaws.com
+    permissions:
+      - managed_policy: arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      - actions: [secretsmanager:GetSecretValue]
+        resource: arn:aws:secretsmanager:ap-southeast-2:ACCOUNT_ID:secret:telco-churn/dagshub-*
+    source: deploy/aws/iam/ecs-tasks-trust-policy.json, deploy/aws/iam/ecs-execution-secret-policy.json
