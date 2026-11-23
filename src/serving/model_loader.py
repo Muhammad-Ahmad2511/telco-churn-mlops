@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -75,19 +76,35 @@ def load_registered_model(cfg_path: str = "configs/model_params.yaml") -> ModelB
 
 
 class ModelStore:
-    """Holds the loaded model. Retries loading if an earlier attempt failed."""
+    """Holds the loaded model. Retries loading if an earlier attempt failed.
+
+    Only one thread loads at a time. While a load is running, other callers get
+    None immediately instead of starting a second download or waiting. Found via
+    Kubernetes probes: concurrent /health calls each downloaded the model, used up
+    all gunicorn threads, and made the /metrics liveness probe time out.
+    """
 
     def __init__(self, loader: Callable[[], ModelBundle] = load_registered_model):
         self._loader = loader
         self._bundle: ModelBundle | None = None
+        self._loading = threading.Lock()
 
     def get(self) -> ModelBundle | None:
-        if self._bundle is None:
+        if self._bundle is None and self._loading.acquire(blocking=False):
             try:
-                self._bundle = self._loader()
+                if self._bundle is None:
+                    self._bundle = self._loader()
             except Exception:
                 logger.exception("Model load failed")
+            finally:
+                self._loading.release()
         return self._bundle
+
+    def warm_up(self) -> threading.Thread:
+        """Start loading in a background thread so the first requests are not blocked."""
+        thread = threading.Thread(target=self.get, name="model-warm-up", daemon=True)
+        thread.start()
+        return thread
 
 
 if __name__ == "__main__":
