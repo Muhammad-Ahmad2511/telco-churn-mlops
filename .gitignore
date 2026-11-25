@@ -29,3 +29,6 @@ mlartifacts/
 
 # documents
 *.pdf
+# Local Claude conversation exports
+claude_chat_export.md
+claude_summary_input.md
