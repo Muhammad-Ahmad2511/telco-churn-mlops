@@ -1,0 +1,7 @@
+# Feast runs in its own environment because it needs pandas 2.x (the main
+# environment uses pandas 3). Create it with:
+#   uv venv --python 3.12 .venv-feast
+#   uv pip install --python .venv-feast\Scripts\python.exe -r requirements-feast.txt
+# The pinned version below is also recorded as a tag on every MLflow run.
+feast==0.68.0
+pytest
