@@ -15,13 +15,12 @@ from __future__ import annotations
 
 import os
 import subprocess
-import sys
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from airflow.providers.standard.operators.bash import BashOperator
 from airflow.providers.standard.operators.empty import EmptyOperator
 from airflow.providers.standard.operators.python import BranchPythonOperator
-from airflow.sdk import DAG
+from airflow.sdk import DAG, Param
 
 # Where the repository is mounted inside the Airflow containers.
 PROJECT_DIR = os.environ.get("PROJECT_DIR", "/opt/airflow/project")
@@ -29,10 +28,23 @@ PROJECT_DIR = os.environ.get("PROJECT_DIR", "/opt/airflow/project")
 DRIFT_EXIT_CODE = 2  # src.monitoring.monitor --exit-code returns 2 on drift
 
 
-def _drift_branch() -> str:
-    """Run the drift check and choose the next task from its exit code."""
+def _drift_branch(params: dict) -> str:
+    """Run the drift check and choose the next task from its exit code.
+
+    `simulate` ("none" or "drift") is chosen when the DAG is triggered; scheduled
+    runs use "none", i.e. the real recent inputs.
+    """
+    simulate = params.get("simulate", "none")
+    print(f"drift check: --simulate {simulate}")
     result = subprocess.run(
-        [sys.executable, "-m", "src.monitoring.monitor", "--exit-code"],
+        [
+            "python",
+            "-m",
+            "src.monitoring.monitor",
+            "--simulate",
+            simulate,
+            "--exit-code",
+        ],
         cwd=PROJECT_DIR,
         capture_output=True,
         text=True,
@@ -58,8 +70,9 @@ with DAG(
     description="Ingest, validate, drift-check and conditionally retrain",
     default_args=default_args,
     schedule="0 2 * * *",  # daily at 02:00; can also be triggered manually
-    start_date=datetime(2026, 11, 1),
+    start_date=datetime(2026, 11, 1, tzinfo=UTC),
     catchup=False,
+    params={"simulate": Param("none", type="string", enum=["none", "drift"])},
     tags=["mlops", "telco-churn"],
 ) as dag:
     ingest = BashOperator(
@@ -82,10 +95,11 @@ with DAG(
 
     skip_retrain = EmptyOperator(task_id="skip_retrain")
 
-    # A quality-gate failure is deterministic, so do not retry blindly.
+    # --force: drift means the model must be retrained even if DVC thinks nothing
+    # changed. A quality-gate failure is deterministic, so do not retry blindly.
     retrain = BashOperator(
         task_id="retrain",
-        bash_command=f"cd {PROJECT_DIR} && dvc repro",
+        bash_command=f"cd {PROJECT_DIR} && dvc repro --force",
         retries=0,
     )
 
