@@ -55,7 +55,13 @@ def register(run_id: str | None = None, cfg_path: str = "configs/model_params.ya
     source = f"models:/{model_outputs[0].model_id}"
     version = mlflow.register_model(source, name).version
     client = MlflowClient()
-    for key in ("git_commit", "dvc_data_md5", "quality_gate"):
+    for key in (
+        "git_commit",
+        "dvc_data_md5",
+        "feast_version",
+        "feature_repo_commit",
+        "quality_gate",
+    ):
         client.set_model_version_tag(name, version, key, tags.get(key, "unknown"))
     client.set_registered_model_alias(name, "candidate", version)
 

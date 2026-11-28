@@ -1,0 +1,13 @@
+# Feast configuration for the telco-churn project (spec 12.1).
+# Development setup: local Parquet offline store + SQLite online store.
+# Production choice (documented in feature_store/README.md): S3/Parquet or a
+# warehouse for the offline store and Redis or DynamoDB for the online store.
+project: telco_churn
+provider: local
+registry: data/registry.db
+online_store:
+  type: sqlite
+  path: data/online_store.db
+offline_store:
+  type: file
+entity_key_serialization_version: 3

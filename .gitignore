@@ -32,3 +32,5 @@ mlartifacts/
 # Local Claude conversation exports
 claude_chat_export.md
 claude_summary_input.md
+.venv-feast/
+feature_store/feature_repo/data/

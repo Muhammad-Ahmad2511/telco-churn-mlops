@@ -47,6 +47,7 @@ from src.features.preprocessing import (
     split_train_val_test,
 )
 from src.models.evaluate import check_thresholds, compute_metrics
+from src.models.lineage import feature_lineage
 from src.models.train import dvc_md5, git_info
 
 logger = logging.getLogger(__name__)
@@ -161,6 +162,7 @@ def tune(
         "git_dirty": str(dirty),
         "dvc_data_md5": dvc_md5(data_cfg["raw_path"]),
         "data_path": data_cfg["processed_path"],
+        **feature_lineage(),
     }
     mlflow.set_experiment(cfg["mlflow"]["experiment_name"])
     logger.info("MLflow tracking URI: %s", mlflow.get_tracking_uri())
