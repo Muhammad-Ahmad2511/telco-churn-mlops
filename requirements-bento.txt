@@ -1,0 +1,4 @@
+# BentoML serving path (spec 12.2). Install on top of the API requirements:
+#   uv pip install --python .venv\Scripts\python.exe -r requirements-bento.txt
+-r requirements-api.txt
+bentoml==1.4.40

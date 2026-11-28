@@ -1,0 +1,24 @@
+# Bento definition for the churn model (spec 12.2).
+#   python -m src.serving.bentoml_package     # registry model -> BentoML model store
+#   bentoml build                             # -> telco_churn:<version>
+#   bentoml containerize telco_churn:latest -t telco-churn-bento:local
+service: "src.serving.bentoml_service:ChurnService"
+labels:
+  project: telco-churn
+  owner: mlops
+include:
+  - "src/__init__.py"
+  - "src/serving/__init__.py"
+  - "src/serving/schema.py"
+  - "src/serving/bentoml_package.py"
+  - "src/serving/bentoml_service.py"
+python:
+  # Same pins as requirements-api.txt, so the model unpickles under the version it was trained with.
+  packages:
+    - "pandas==3.1.1"
+    - "numpy==2.5.4"
+    - "scikit-learn==1.9.1"
+models:
+  - "telco-churn-classifier:latest"
+docker:
+  python_version: "3.12"
